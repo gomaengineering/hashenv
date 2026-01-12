@@ -19,12 +19,58 @@ const MONGODB_URI = process.env.MONGODB_URI;
 app.use(securityHeaders);
 
 // Security: CORS configuration
-const corsOptions = {
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+// Supports single origin (FRONTEND_URL) or multiple origins (CORS_ORIGINS - comma-separated)
+function getCorsOrigins(): string | string[] | boolean {
+  // Check if CORS_ORIGINS is set (comma-separated list for multiple origins)
+  const corsOriginsEnv = process.env.CORS_ORIGINS;
+  
+  if (corsOriginsEnv) {
+    // Split by comma and trim each origin
+    const origins = corsOriginsEnv.split(',').map(origin => origin.trim()).filter(Boolean);
+    
+    if (origins.length > 0) {
+      // In production, only allow specified origins
+      if (process.env.NODE_ENV === 'production') {
+        return origins;
+      }
+      // In development, also allow localhost
+      return [...origins, 'http://localhost:3000', 'http://127.0.0.1:3000'];
+    }
+  }
+  
+  // Fallback to FRONTEND_URL (single origin)
+  const frontendUrl = process.env.FRONTEND_URL;
+  
+  if (frontendUrl) {
+    // In development, also allow localhost even if FRONTEND_URL is set
+    if (process.env.NODE_ENV === 'development') {
+      return [frontendUrl, 'http://localhost:3000', 'http://127.0.0.1:3000'];
+    }
+    return frontendUrl;
+  }
+  
+  // Default: allow localhost in development, deny all in production
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('CORS configuration error: FRONTEND_URL or CORS_ORIGINS must be set in production');
+  }
+  
+  return 'http://localhost:3000';
+}
+
+const corsOptions: cors.CorsOptions = {
+  origin: getCorsOrigins(),
   credentials: true,
   optionsSuccessStatus: 200,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
+  // Security: Expose only necessary headers
+  exposedHeaders: [],
+  // Security: Max age for preflight requests (24 hours)
+  maxAge: 86400,
+  // Security: Validate origin in production
+  ...(process.env.NODE_ENV === 'production' && {
+    preflightContinue: false,
+  }),
 };
 
 app.use(cors(corsOptions));
