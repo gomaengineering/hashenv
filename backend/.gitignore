@@ -8,3 +8,8 @@ dist/
 *.env.*
 *.md
 *.txt
+
+# generate-key.js
+# scripts/generate-key.js
+
+.cursorignore
