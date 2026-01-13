@@ -16,8 +16,9 @@ const PORT = process.env.PORT || 3001;
 const MONGODB_URI = process.env.MONGODB_URI;
 
 // Trust proxy - Required for Render and other reverse proxy setups
+// Set to 1 to trust only the first proxy (Render's proxy), which is more secure
 // This allows Express to correctly identify client IPs from X-Forwarded-* headers
-app.set('trust proxy', true);
+app.set('trust proxy', 1);
 
 // Security: Helmet for security headers
 app.use(securityHeaders);

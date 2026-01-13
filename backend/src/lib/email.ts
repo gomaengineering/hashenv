@@ -19,6 +19,7 @@ function createTransporter() {
   }
 
   const transporter = nodemailer.createTransport({
+    // @ts-expect-error: Allow unknown SMTP config keys for nodemailer
     host,
     port,
     secure,
@@ -26,6 +27,14 @@ function createTransporter() {
       user,
       pass,
     },
+    // Connection timeout settings for Render and cloud environments
+    connectionTimeout: 10000, // 10 seconds - timeout for initial connection
+    greetingTimeout: 5000, // 5 seconds - timeout for SMTP greeting
+    socketTimeout: 10000, // 10 seconds - timeout for socket inactivity
+    // Retry configuration
+    pool: false, // Don't use connection pooling on Render (can cause issues)
+    maxConnections: 1,
+    maxMessages: 1,
   });
 
   return transporter;
