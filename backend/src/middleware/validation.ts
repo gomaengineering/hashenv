@@ -30,7 +30,7 @@ export const validateProjectId = (): ValidationChain => {
     .optional()
     .custom((value, { req }) => {
       // Get the project ID from either parameter
-      const projectId = req.params.id || req.params.projectId;
+      const projectId = req.params?.id || req.params?.projectId;
       if (!projectId) {
         throw new Error('Project ID is required');
       }
