@@ -43,7 +43,7 @@ export default api;
 
 // Auth API
 export const authAPI = {
-  register: async (data: { name: string; email: string; password: string }) => {
+  register: async (data: { name: string; username: string; email: string; password: string }) => {
     const response = await api.post('/auth/register', data);
     return response.data;
   },
@@ -188,5 +188,53 @@ export const envAPI = {
     link.click();
     link.remove();
     window.URL.revokeObjectURL(url);
+  },
+};
+
+// Secrets API
+export const secretsAPI = {
+  list: async (projectId: string) => {
+    const response = await api.get(`/projects/${projectId}/secrets`);
+    return response.data;
+  },
+  get: async (projectId: string, secretId: string) => {
+    const response = await api.get(`/projects/${projectId}/secrets/${secretId}/content`);
+    return response.data;
+  },
+  create: async (projectId: string, data: { name: string; content: string }) => {
+    const response = await api.post(`/projects/${projectId}/secrets`, data);
+    return response.data;
+  },
+  update: async (projectId: string, secretId: string, data: { name?: string; content?: string }) => {
+    const response = await api.put(`/projects/${projectId}/secrets/${secretId}`, data);
+    return response.data;
+  },
+  delete: async (projectId: string, secretId: string) => {
+    const response = await api.delete(`/projects/${projectId}/secrets/${secretId}`);
+    return response.data;
+  },
+};
+
+// Settings API
+export const settingsAPI = {
+  get: async () => {
+    const response = await api.get('/settings');
+    return response.data;
+  },
+  update: async (data: { flushDuration?: number | null; panicButton?: { flushEnvs?: boolean; revokeCollaborators?: boolean; downloadEnvs?: boolean; askConfirmation?: boolean } }) => {
+    const response = await api.put('/settings', data);
+    return response.data;
+  },
+  getProfile: async () => {
+    const response = await api.get('/settings/profile');
+    return response.data;
+  },
+  updateProfile: async (data: { name?: string; username?: string }) => {
+    const response = await api.put('/settings/profile', data);
+    return response.data;
+  },
+  panic: async () => {
+    const response = await api.post('/settings/panic');
+    return response.data;
   },
 };

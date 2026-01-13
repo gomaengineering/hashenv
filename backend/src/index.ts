@@ -2,9 +2,12 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
+import morgan from 'morgan';
 import authRoutes from './routes/auth';
 import projectRoutes from './routes/projects';
 import envRoutes from './routes/env';
+import secretsRoutes from './routes/secrets';
+import settingsRoutes from './routes/settings';
 import { securityHeaders, apiRateLimiter } from './middleware/security';
 import { sanitizeError } from './middleware/security';
 
@@ -22,6 +25,11 @@ app.set('trust proxy', 1);
 
 // Security: Helmet for security headers
 app.use(securityHeaders);
+
+// HTTP request logging (development only)
+if (process.env.NODE_ENV === 'development') {
+  app.use(morgan('dev')); // Colored, concise logging format
+}
 
 // Security: CORS configuration
 // Supports single origin (FRONTEND_URL) or multiple origins (CORS_ORIGINS - comma-separated)
@@ -96,6 +104,8 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/projects', envRoutes);
+app.use('/api/projects', secretsRoutes);
+app.use('/api/settings', settingsRoutes);
 
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -163,10 +173,13 @@ mongoose
     
     // Start server
     app.listen(PORT, () => {
+     
       console.log(`Server running on port ${PORT}`);
       if (process.env.NODE_ENV === 'development') {
+        console.log(`API: http://localhost:${PORT}/api`);
         console.log(`Health check: http://localhost:${PORT}/health`);
       }
+      console.log('\n');
     });
   })
   .catch((error) => {

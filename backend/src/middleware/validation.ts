@@ -22,14 +22,23 @@ export const validateObjectId = (paramName: string = 'id'): ValidationChain => {
 
 /**
  * Validate project ID parameter
+ * Note: Routes use either :id or :projectId as the parameter name
+ * This validation checks both parameter names and validates whichever is present
  */
 export const validateProjectId = (): ValidationChain => {
-  return param('projectId').custom((value) => {
-    if (!isValidObjectId(value)) {
-      throw new Error('Invalid project ID format');
-    }
-    return true;
-  });
+  return param('id')
+    .optional()
+    .custom((value, { req }) => {
+      // Get the project ID from either parameter
+      const projectId = req.params.id || req.params.projectId;
+      if (!projectId) {
+        throw new Error('Project ID is required');
+      }
+      if (!isValidObjectId(projectId)) {
+        throw new Error('Invalid project ID format');
+      }
+      return true;
+    });
 };
 
 /**

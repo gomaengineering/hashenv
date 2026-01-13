@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { projectsAPI } from '@/lib/api';
+import { projectsAPI, settingsAPI } from '@/lib/api';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { AuthenticatedLayout } from '@/components/AuthenticatedLayout';
 import { CreateProjectButton } from '@/components/ui/CreateProjectButton';
 import { ProjectCard } from '@/components/ProjectCard';
 import { SkeletonCard, Skeleton } from '@/components/ui/Skeleton';
+import { Button } from '@/components/ui/Button';
 
 interface Project {
   _id: string;
@@ -33,10 +34,23 @@ export default function DashboardPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [panicButtonSettings, setPanicButtonSettings] = useState<any>(null);
+  const [panicLoading, setPanicLoading] = useState(false);
 
   useEffect(() => {
     loadProjects();
+    loadPanicSettings();
   }, []);
+
+  const loadPanicSettings = async () => {
+    try {
+      const settings = await settingsAPI.get();
+      setPanicButtonSettings(settings.panicButton);
+    } catch (err) {
+      // Silent fail - panic button settings are optional
+      console.error('Failed to load panic button settings:', err);
+    }
+  };
 
   const loadProjects = async () => {
     try {
@@ -50,10 +64,85 @@ export default function DashboardPage() {
     }
   };
 
+  const handlePanicButton = async () => {
+    if (!panicButtonSettings) {
+      alert('Panic button not configured. Please configure it in Settings.');
+      return;
+    }
+
+    const { flushEnvs, revokeCollaborators, downloadEnvs, askConfirmation } = panicButtonSettings;
+
+    if (!flushEnvs && !revokeCollaborators && !downloadEnvs) {
+      alert('No panic actions configured. Please configure panic button settings first.');
+      return;
+    }
+
+    // Show confirmation if enabled
+    if (askConfirmation) {
+      const confirmMessage = `Are you sure you want to execute panic actions?\n\n` +
+        `${downloadEnvs ? '• Download all environment files\n' : ''}` +
+        `${flushEnvs ? '• Delete all environment files\n' : ''}` +
+        `${revokeCollaborators ? '• Revoke all collaborator access\n' : ''}`;
+      
+      if (!confirm(confirmMessage)) {
+        return;
+      }
+    }
+
+    setPanicLoading(true);
+    try {
+      const result = await settingsAPI.panic();
+
+      // Handle download if enabled
+      if (result.results?.downloadEnvs && result.results?.downloadContent) {
+        const blob = new Blob([result.results.downloadContent], { type: 'text/plain' });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', result.results.downloadFilename || 'hashenv-backup.txt');
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+      }
+
+      // Show success message
+      const actions = [];
+      if (result.results?.downloadEnvs) actions.push('downloaded');
+      if (result.results?.flushEnvs) actions.push('flushed');
+      if (result.results?.revokeCollaborators) actions.push('collaborators revoked');
+
+      alert(`Panic actions executed successfully!\n\nActions: ${actions.join(', ')}`);
+      
+      // Reload projects to reflect changes
+      loadProjects();
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to execute panic actions');
+    } finally {
+      setPanicLoading(false);
+    }
+  };
+
   return (
     <ProtectedRoute>
       <AuthenticatedLayout>
         <div className="p-6 lg:p-8">
+          {/* Panic Button - Top of Dashboard */}
+          <div className="mb-6 flex justify-end">
+            <Button
+              variant="danger"
+              size="md"
+              onClick={handlePanicButton}
+              disabled={panicLoading || !panicButtonSettings}
+              className="flex items-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              {panicLoading ? 'Processing...' : 'Panic Button'}
+            </Button>
+          </div>
+
           {/* Header Section */}
           <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>

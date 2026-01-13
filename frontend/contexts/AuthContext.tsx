@@ -6,6 +6,7 @@ import { authAPI } from '@/lib/api';
 interface User {
   id: string;
   name: string;
+  username: string;
   email: string;
   role: 'admin' | 'user'; // DEPRECATED: Not used for access control
 }
@@ -14,7 +15,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
+  register: (name: string, username: string, email: string, password: string) => Promise<void>;
   logout: () => void;
   isAuthenticated: boolean;
   isAdmin: boolean; // DEPRECATED: Always false, kept for backward compatibility
@@ -57,8 +58,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(data.user);
   };
 
-  const register = async (name: string, email: string, password: string) => {
-    const data = await authAPI.register({ name, email, password });
+  const register = async (name: string, username: string, email: string, password: string) => {
+    const data = await authAPI.register({ name, username, email, password });
     // Registration now returns a message instead of token - user must verify email first
     // Don't set token or user - they need to verify email before logging in
     return data;

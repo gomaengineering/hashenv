@@ -276,11 +276,12 @@ router.get(
         return;
       }
 
-      // Search by name or email (case-insensitive)
+      // Search by name, username, or email (case-insensitive)
       const searchRegex = new RegExp(query.trim(), 'i');
       const users = await User.find({
         $or: [
           { name: searchRegex },
+          { username: searchRegex },
           { email: searchRegex },
         ],
       })

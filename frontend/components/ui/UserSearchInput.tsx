@@ -6,6 +6,7 @@ import { projectsAPI } from '@/lib/api';
 interface User {
   _id: string;
   name: string;
+  username: string;
   email: string;
   role: string;
 }
@@ -22,7 +23,7 @@ export function UserSearchInput({
   value,
   onChange,
   excludeUserIds = [],
-  placeholder = 'Search users by name or email...',
+  placeholder = 'Search users by name...',
   className = '',
 }: UserSearchInputProps) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -90,7 +91,7 @@ export function UserSearchInput({
 
   const handleSelectUser = (user: User) => {
     onChange(user);
-    setSearchQuery(`${user.name} (${user.email})`);
+    setSearchQuery(user.name);
     setShowDropdown(false);
     setUsers([]);
   };
@@ -187,10 +188,7 @@ export function UserSearchInput({
                       : 'text-[var(--foreground)] hover:bg-[var(--surface-elevated)]'
                   }`}
                 >
-                  <div>
-                    <p className="font-medium">{user.name}</p>
-                    <p className="text-xs text-[var(--text-muted)]">{user.email}</p>
-                  </div>
+                  <p className="font-medium">{user.name}</p>
                 </li>
               ))}
             </ul>

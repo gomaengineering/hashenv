@@ -26,6 +26,14 @@ router.post(
       .withMessage('Name must be between 1 and 100 characters')
       .matches(/^[a-zA-Z0-9\s\-_.]+$/)
       .withMessage('Name contains invalid characters'),
+    body('username')
+      .trim()
+      .notEmpty()
+      .withMessage('Username is required')
+      .isLength({ min: 3, max: 30 })
+      .withMessage('Username must be between 3 and 30 characters')
+      .matches(/^[a-z0-9_]+$/)
+      .withMessage('Username can only contain lowercase letters, numbers, and underscores'),
     validateEmail(),
     validatePassword(),
   ],
@@ -37,12 +45,19 @@ router.post(
         return;
       }
       
-      const { name, email, password } = req.body;
+      const { name, username, email, password } = req.body;
       
-      // Check if user already exists
-      const existingUser = await User.findOne({ email: email.toLowerCase() });
-      if (existingUser) {
+      // Check if user with email already exists
+      const existingUserByEmail = await User.findOne({ email: email.toLowerCase() });
+      if (existingUserByEmail) {
         res.status(400).json({ error: 'User with this email already exists' });
+        return;
+      }
+      
+      // Check if username already exists
+      const existingUserByUsername = await User.findOne({ username: username.toLowerCase() });
+      if (existingUserByUsername) {
+        res.status(400).json({ error: 'Username already taken' });
         return;
       }
       
@@ -56,6 +71,7 @@ router.post(
       // Create user with emailVerified: false (role field is deprecated and not used for access control)
       const user = await User.create({
         name,
+        username: username.toLowerCase(),
         email: email.toLowerCase(),
         password: hashedPassword,
         role: 'admin', // Kept for backward compatibility, not used for access control
@@ -141,6 +157,7 @@ router.post(
         user: {
           id: user._id,
           name: user.name,
+          username: user.username,
           email: user.email,
           role: user.role,
         },
@@ -369,6 +386,7 @@ router.get('/me', authenticate, async (req: AuthRequest, res: Response): Promise
     res.json({
       id: user._id,
       name: user.name,
+      username: user.username,
       email: user.email,
       role: user.role,
       emailVerified: user.emailVerified,

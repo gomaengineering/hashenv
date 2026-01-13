@@ -13,6 +13,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
@@ -39,11 +40,12 @@ export default function LoginPage() {
         await login(email, password);
         router.push('/dashboard');
       } else {
-        await register(name, email, password);
+        await register(name, username, email, password);
         setSuccess('Registration successful! Please check your email to verify your account before logging in.');
         setIsLogin(true); // Switch to login view
             setEmail(email); // Keep email filled
             setName(''); // Clear name
+            setUsername(''); // Clear username
             setPassword(''); // Clear password
       }
     } catch (err: any) {
@@ -213,21 +215,44 @@ export default function LoginPage() {
               )}
               
               {!isLogin && (
-                <div>
-                  <label htmlFor="name" className="block text-sm font-medium text-[var(--foreground)] font-[var(--font-inter)] mb-2">
-                    Name
-                  </label>
-                  <input
-                    id="name"
-                    name="name"
-                    type="text"
-                    required={!isLogin}
-                    className="block w-full rounded-full border border-[var(--border)] bg-[var(--background)] px-4 py-2.5 text-[var(--foreground)] placeholder:text-[var(--text-muted)] shadow-sm focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/20 transition-all font-[var(--font-inter)]"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Enter your name"
-                  />
-                </div>
+                <>
+                  <div>
+                    <label htmlFor="name" className="block text-sm font-medium text-[var(--foreground)] font-[var(--font-inter)] mb-2">
+                      Name
+                    </label>
+                    <input
+                      id="name"
+                      name="name"
+                      type="text"
+                      required={!isLogin}
+                      className="block w-full rounded-full border border-[var(--border)] bg-[var(--background)] px-4 py-2.5 text-[var(--foreground)] placeholder:text-[var(--text-muted)] shadow-sm focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/20 transition-all font-[var(--font-inter)]"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Enter your name"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="username" className="block text-sm font-medium text-[var(--foreground)] font-[var(--font-inter)] mb-2">
+                      Username
+                    </label>
+                    <input
+                      id="username"
+                      name="username"
+                      type="text"
+                      required={!isLogin}
+                      minLength={3}
+                      maxLength={30}
+                      pattern="[a-z0-9_]+"
+                      className="block w-full rounded-full border border-[var(--border)] bg-[var(--background)] px-4 py-2.5 text-[var(--foreground)] placeholder:text-[var(--text-muted)] shadow-sm focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/20 transition-all font-[var(--font-inter)]"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                      placeholder="username (lowercase, numbers, underscores only)"
+                    />
+                    <p className="mt-1 text-xs text-[var(--text-muted)] font-[var(--font-inter)]">
+                      3-30 characters, lowercase letters, numbers, and underscores only
+                    </p>
+                  </div>
+                </>
               )}
 
               <div>
