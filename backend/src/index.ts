@@ -95,13 +95,13 @@ app.use(express.urlencoded({ extended: true, limit: '100kb' })); // Limit URL-en
 // Security: Apply rate limiting to API routes
 app.use('/api', apiRateLimiter);
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
 // API routes
 app.use('/api/auth', authRoutes);
+
+// Health check endpoint (after API routes so it's at /api/health)
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
 app.use('/api/projects', projectRoutes);
 app.use('/api/projects', envRoutes);
 app.use('/api/projects', secretsRoutes);
@@ -177,7 +177,7 @@ mongoose
       console.log(`Server running on port ${PORT}`);
       if (process.env.NODE_ENV === 'development') {
         console.log(`API: http://localhost:${PORT}/api`);
-        console.log(`Health check: http://localhost:${PORT}/health`);
+        console.log(`Health check: http://localhost:${PORT}/api/health`);
       }
       console.log('\n');
     });
