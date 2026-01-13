@@ -2,6 +2,7 @@ import mongoose, { Document, Schema } from 'mongoose';
 
 export interface IUser extends Document {
   name: string;
+  username: string;
   email: string;
   password: string;
   role: 'admin' | 'user'; // DEPRECATED: Not used for access control
@@ -19,6 +20,16 @@ const UserSchema: Schema = new Schema(
       type: String,
       required: [true, 'Name is required'],
       trim: true,
+    },
+    username: {
+      type: String,
+      required: [true, 'Username is required'],
+      unique: true,
+      lowercase: true,
+      trim: true,
+      minlength: [3, 'Username must be at least 3 characters'],
+      maxlength: [30, 'Username must be less than 30 characters'],
+      match: [/^[a-z0-9_]+$/, 'Username can only contain lowercase letters, numbers, and underscores'],
     },
     email: {
       type: String,
@@ -69,6 +80,6 @@ const UserSchema: Schema = new Schema(
   }
 );
 
-// Note: email index is automatically created by unique: true
+// Note: email and username indexes are automatically created by unique: true
 
 export default mongoose.model<IUser>('User', UserSchema);

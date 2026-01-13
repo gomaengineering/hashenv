@@ -15,6 +15,7 @@ import { SkeletonCard, Skeleton } from '@/components/ui/Skeleton';
 interface User {
   _id: string;
   name: string;
+  username: string;
   email: string;
   role: string;
 }
@@ -153,7 +154,7 @@ export default function ManageMembersPage() {
                 Manage Members - {project.name}
               </h1>
               <p className="mt-1 text-sm text-[var(--text-muted)]">
-                Add or remove team members from this project. Search for users by name or email.
+                Add or remove team members from this project. Search for users by name.
               </p>
             </div>
 
@@ -172,10 +173,10 @@ export default function ManageMembersPage() {
                     Search Users
                   </label>
                   <UserSearchInput
-                    value={selectedUser ? `${selectedUser.name} (${selectedUser.email})` : ''}
+                    value={selectedUser ? selectedUser.name : ''}
                     onChange={setSelectedUser}
                     excludeUserIds={memberUserIds}
-                    placeholder="Type to search users by name or email..."
+                    placeholder="Type to search users by name..."
                     className="w-full"
                   />
                   <p className="mt-1 text-xs text-[var(--text-muted)]">
@@ -242,10 +243,7 @@ export default function ManageMembersPage() {
                         return (
                           <tr key={idx} className="hover:bg-[var(--surface-elevated)] transition-colors">
                             <td className="whitespace-nowrap px-6 py-4 text-sm text-[var(--foreground)]">
-                              <div>
-                                <p className="font-medium">{userName}</p>
-                                <p className="text-[var(--text-muted)]">{userEmail}</p>
-                              </div>
+                              <p className="font-medium">{userName}</p>
                             </td>
                             <td className="whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">
                               <span className="rounded-full bg-[var(--accent)]/20 px-3 py-1 text-xs font-medium text-[var(--accent)]">

@@ -8,7 +8,7 @@ import crypto from 'crypto';
  * All email operations are outbound only.
  */
 
-const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email';
+const BREVO_API_URL = process.env.BREVO_API_URL || 'https://api.brevo.com/v3/smtp/email';
 
 /**
  * Get Brevo API key from environment variables
