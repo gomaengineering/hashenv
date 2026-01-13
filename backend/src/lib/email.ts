@@ -1,117 +1,120 @@
-import nodemailer from 'nodemailer';
 import crypto from 'crypto';
 
 /**
- * Email service for sending verification and password reset emails
+ * Email service for SENDING emails only (no email receiving functionality)
+ * Uses Brevo API for transactional email delivery
+ * 
+ * This service only sends emails - it does NOT receive or process incoming emails.
+ * All email operations are outbound only.
  */
 
-// Create transporter based on environment
-// Emails are sent via SMTP in both development and production
-function createTransporter() {
-  const host = process.env.SMTP_HOST;
-  const port = parseInt(process.env.SMTP_PORT || '587');
-  const secure = process.env.SMTP_SECURE === 'true'; // true for 465, false for other ports
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASSWORD || process.env.SMTP_API_KEY;
+const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email';
 
-  if (!host || !user || !pass) {
-    throw new Error('SMTP configuration is missing. Please set SMTP_HOST, SMTP_USER, and SMTP_PASSWORD environment variables.');
+/**
+ * Get Brevo API key from environment variables
+ */
+function getBrevoApiKey(): string {
+  const apiKey = process.env.BREVO_API_KEY;
+  if (!apiKey) {
+    throw new Error('BREVO_API_KEY environment variable is not set. Please set it to your Brevo API key.');
   }
-
-  const transporter = nodemailer.createTransport({
-    // @ts-expect-error: Allow unknown SMTP config keys for nodemailer
-    host,
-    port,
-    secure,
-    auth: {
-      user,
-      pass,
-    },
-    // Connection timeout settings for Render and cloud environments
-    connectionTimeout: 10000, // 10 seconds - timeout for initial connection
-    greetingTimeout: 5000, // 5 seconds - timeout for SMTP greeting
-    socketTimeout: 10000, // 10 seconds - timeout for socket inactivity
-    // Retry configuration
-    pool: false, // Don't use connection pooling on Render (can cause issues)
-    maxConnections: 1,
-    maxMessages: 1,
-  });
-
-  return transporter;
-}
-
-// Lazy initialization - create transporter when first needed
-let transporter: ReturnType<typeof createTransporter> | null = null;
-function getTransporter() {
-  if (!transporter) {
-    transporter = createTransporter();
-  }
-  return transporter;
+  return apiKey;
 }
 
 /**
- * Sanitize and escape display name for email headers (RFC 5322 compliant)
- * Handles special characters, quotes, and backslashes properly
+ * Get sender email and name from environment variables
+ * This is used as the "from" address for all outgoing emails
  */
-function sanitizeDisplayName(name: string): string {
-  // Remove leading/trailing whitespace
-  const trimmed = name.trim();
-  
-  // If empty after trimming, return empty string
-  if (!trimmed) {
-    return '';
-  }
-  
-  // Check if name needs to be quoted (contains special characters or spaces)
-  const needsQuoting = /[(),:;<>@[\]\\"]/.test(trimmed) || trimmed.includes(' ');
-  
-  if (needsQuoting) {
-    // Escape backslashes and double quotes, then wrap in quotes
-    const escaped = trimmed
-      .replace(/\\/g, '\\\\')  // Escape backslashes first
-      .replace(/"/g, '\\"');   // Escape double quotes
-    return `"${escaped}"`;
-  }
-  
-  return trimmed;
-}
+function getSenderInfo(): { email: string; name?: string } {
+  const email = process.env.BREVO_SENDER_EMAIL || process.env.BREVO_FROM_EMAIL;
+  const name = process.env.BREVO_SENDER_NAME || process.env.BREVO_DISPLAY_NAME;
 
-/**
- * Get formatted "from" email address with optional display name
- * Production-grade implementation with proper RFC 5322 compliance
- * 
- * Format options:
- * - With display name: "Display Name" <email@example.com>
- * - Without display name: email@example.com
- * 
- * @returns Properly formatted email address string
- */
-function getFromAddress(): string {
-  // Get email address (priority: SMTP_FROM > SMTP_USER > fallback)
-  const email = process.env.SMTP_FROM || process.env.SMTP_USER || 'noreply@hashenv.com';
-  
-  // Validate email format (basic check)
   if (!email || typeof email !== 'string' || !email.includes('@')) {
-    throw new Error('Invalid email address in SMTP configuration. SMTP_FROM or SMTP_USER must be a valid email address.');
+    throw new Error('BREVO_SENDER_EMAIL or BREVO_FROM_EMAIL must be set to a valid email address.');
   }
-  
-  // Get and sanitize display name
-  const displayName = process.env.SMTP_DISPLAY_NAME;
-  
-  // If no display name is set, return just the email address
-  if (!displayName || typeof displayName !== 'string') {
-    return email.trim();
+
+  return {
+    email: email.trim(),
+    ...(name && typeof name === 'string' && name.trim() ? { name: name.trim() } : {}),
+  };
+}
+
+/**
+ * Send email via Brevo API (send-only operation)
+ * This function only sends emails and does not handle incoming emails
+ * 
+ * @param to - Array of recipient email addresses with optional names
+ * @param subject - Email subject line
+ * @param htmlContent - HTML content of the email
+ * @param textContent - Optional plain text content of the email
+ * @throws Error if email sending fails
+ */
+async function sendEmailViaBrevo(
+  to: { email: string; name?: string }[],
+  subject: string,
+  htmlContent: string,
+  textContent?: string
+): Promise<void> {
+  const apiKey = getBrevoApiKey();
+  const sender = getSenderInfo();
+
+  // Validate recipients
+  if (!to || !Array.isArray(to) || to.length === 0) {
+    throw new Error('At least one recipient email address is required');
   }
-  
-  const sanitizedName = sanitizeDisplayName(displayName);
-  
-  // If sanitization resulted in empty string, return just email
-  if (!sanitizedName) {
-    return email.trim();
+
+  // Validate each recipient email
+  for (const recipient of to) {
+    if (!recipient.email || typeof recipient.email !== 'string' || !recipient.email.includes('@')) {
+      throw new Error(`Invalid recipient email address: ${recipient.email}`);
+    }
   }
-  
-  // Format: "Display Name" <email@example.com>
-  return `${sanitizedName} <${email.trim()}>`;
+
+  // Prepare payload for Brevo API
+  const payload = {
+    sender,
+    to,
+    subject,
+    htmlContent,
+    ...(textContent ? { textContent } : {}),
+  };
+
+  try {
+    const response = await fetch(BREVO_API_URL, {
+      method: 'POST',
+      headers: {
+        'api-key': apiKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      let errorMessage = `Brevo API error: ${response.status} ${response.statusText}`;
+      
+      try {
+        const errorJson = JSON.parse(errorText);
+        errorMessage = errorJson.message || errorJson.error || errorMessage;
+      } catch {
+        // If parsing fails, use the text as is
+        if (errorText) {
+          errorMessage = `${errorMessage} - ${errorText}`;
+        }
+      }
+
+      throw new Error(errorMessage);
+    }
+
+    // Email sent successfully - no need to parse response for send-only operation
+    return;
+  } catch (error) {
+    // Re-throw with additional context if it's not already an Error
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error(`Failed to send email: ${String(error)}`);
+  }
 }
 
 /**
@@ -122,13 +125,18 @@ export function generateVerificationToken(): string {
 }
 
 /**
- * Send email verification email
+ * Send email verification email via Brevo API (send-only)
+ * 
+ * @param email - Recipient email address
+ * @param token - Verification token
+ * @param name - Recipient name
+ * @throws Error if email sending fails
  */
 export async function sendVerificationEmail(email: string, token: string, name: string): Promise<void> {
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
   const verificationUrl = `${frontendUrl}/verify-email?token=${token}`;
 
-  // In development mode, also log the verification URL for convenience
+  // Always log verification URL in development
   if (process.env.NODE_ENV === 'development') {
     console.log('\n========== EMAIL VERIFICATION (DEVELOPMENT MODE) ==========');
     console.log(`To: ${email}`);
@@ -137,7 +145,7 @@ export async function sendVerificationEmail(email: string, token: string, name: 
     console.log('===========================================================\n');
   }
 
-  const html = `
+  const htmlContent = `
     <!DOCTYPE html>
     <html>
     <head>
@@ -167,30 +175,52 @@ export async function sendVerificationEmail(email: string, token: string, name: 
     </html>
   `;
 
+  const textContent = `Hello ${name},\n\nThank you for registering with HashEnv. Please verify your email address by visiting the following link:\n\n${verificationUrl}\n\nThis link will expire in 24 hours.\n\nIf you didn't create an account, you can safely ignore this email.\n\nBest regards,\nThe HashEnv Team`;
+
   try {
-    await getTransporter().sendMail({
-      from: getFromAddress(),
-      to: email,
-      subject: 'Verify Your Email Address - HashEnv',
-      html,
-    });
+    await sendEmailViaBrevo(
+      [{ email, name }],
+      'Verify Your Email Address - HashEnv',
+      htmlContent,
+      textContent
+    );
+
     if (process.env.NODE_ENV === 'development') {
-      console.log('✓ Verification email sent successfully');
+      console.log('✓ Verification email sent successfully via Brevo');
     }
   } catch (error) {
-    console.error('Failed to send verification email:', error);
-    throw new Error('Failed to send verification email');
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    
+    console.error('Failed to send verification email via Brevo:', {
+      error: errorMessage,
+      email,
+    });
+
+    // Log verification URL as fallback when email fails
+    console.log('\n========== VERIFICATION URL (EMAIL FAILED - USE THIS AS FALLBACK) ==========');
+    console.log(`Email: ${email}`);
+    console.log(`Verification URL: ${verificationUrl}`);
+    console.log('NOTE: Copy this URL and use it to verify the account manually');
+    console.log('====================================================================\n');
+
+    // Still throw error so caller knows email failed
+    throw new Error(`Failed to send verification email: ${errorMessage}`);
   }
 }
 
 /**
- * Send password reset email
+ * Send password reset email via Brevo API (send-only)
+ * 
+ * @param email - Recipient email address
+ * @param token - Password reset token
+ * @param name - Recipient name
+ * @throws Error if email sending fails
  */
 export async function sendPasswordResetEmail(email: string, token: string, name: string): Promise<void> {
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
   const resetUrl = `${frontendUrl}/reset-password?token=${token}`;
 
-  // In development mode, also log the reset URL for convenience
+  // Always log reset URL in development
   if (process.env.NODE_ENV === 'development') {
     console.log('\n========== PASSWORD RESET (DEVELOPMENT MODE) ==========');
     console.log(`To: ${email}`);
@@ -199,7 +229,7 @@ export async function sendPasswordResetEmail(email: string, token: string, name:
     console.log('======================================================\n');
   }
 
-  const html = `
+  const htmlContent = `
     <!DOCTYPE html>
     <html>
     <head>
@@ -231,18 +261,35 @@ export async function sendPasswordResetEmail(email: string, token: string, name:
     </html>
   `;
 
+  const textContent = `Hello ${name},\n\nWe received a request to reset your password for your HashEnv account. Please visit the following link to reset your password:\n\n${resetUrl}\n\nSecurity Notice: This link will expire in 1 hour. If you didn't request a password reset, please ignore this email and your password will remain unchanged.\n\nBest regards,\nThe HashEnv Team`;
+
   try {
-    await getTransporter().sendMail({
-      from: getFromAddress(),
-      to: email,
-      subject: 'Reset Your Password - HashEnv',
-      html,
-    });
+    await sendEmailViaBrevo(
+      [{ email, name }],
+      'Reset Your Password - HashEnv',
+      htmlContent,
+      textContent
+    );
+
     if (process.env.NODE_ENV === 'development') {
-      console.log('✓ Password reset email sent successfully');
+      console.log('✓ Password reset email sent successfully via Brevo');
     }
   } catch (error) {
-    console.error('Failed to send password reset email:', error);
-    throw new Error('Failed to send password reset email');
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    
+    console.error('Failed to send password reset email via Brevo:', {
+      error: errorMessage,
+      email,
+    });
+
+    // Log reset URL as fallback when email fails
+    console.log('\n========== PASSWORD RESET URL (EMAIL FAILED - USE THIS AS FALLBACK) ==========');
+    console.log(`Email: ${email}`);
+    console.log(`Reset URL: ${resetUrl}`);
+    console.log('NOTE: Copy this URL and use it to reset the password manually');
+    console.log('==================================================================\n');
+
+    // Still throw error so caller knows email failed
+    throw new Error(`Failed to send password reset email: ${errorMessage}`);
   }
 }
