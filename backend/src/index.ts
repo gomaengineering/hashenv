@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import morgan from 'morgan';
+import cron from 'node-cron';
 import authRoutes from './routes/auth';
 import projectRoutes from './routes/projects';
 import envRoutes from './routes/env';
@@ -92,16 +93,16 @@ app.use(cors(corsOptions));
 app.use(express.json({ limit: '100kb' })); // Limit JSON payloads
 app.use(express.urlencoded({ extended: true, limit: '100kb' })); // Limit URL-encoded payloads
 
+// Health check endpoint (register before rate limiter for easy access)
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
 // Security: Apply rate limiting to API routes
 app.use('/api', apiRateLimiter);
 
 // API routes
 app.use('/api/auth', authRoutes);
-
-// Health check endpoint (after API routes so it's at /api/health)
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
 app.use('/api/projects', projectRoutes);
 app.use('/api/projects', envRoutes);
 app.use('/api/projects', secretsRoutes);
@@ -181,6 +182,49 @@ mongoose
       }
       console.log('\n');
     });
+
+    // Start health ping cron job to keep Render backend awake
+    // Ping every 14 minutes to prevent 15-minute sleep timeout
+    // Only run in production (on Render), skip in development
+    if (process.env.NODE_ENV === 'production') {
+      const backendUrl = process.env.BACKEND_URL || 'https://hashenv-backend.onrender.com';
+      const healthUrl = `${backendUrl}/api/health`;
+
+      // Ping immediately on startup
+      const pingHealth = async () => {
+        try {
+          const response = await fetch(healthUrl, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          });
+          if (response.ok) {
+            console.log(`[Health Ping] Successfully pinged health endpoint at ${new Date().toISOString()}`);
+          } else {
+            console.warn(`[Health Ping] Health check returned status ${response.status}`);
+          }
+        } catch (error) {
+          // Silently fail - don't spam logs, but log occasionally
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          console.warn(`[Health Ping] Failed to ping health endpoint: ${errorMessage}`);
+        }
+      };
+
+      // Ping immediately
+      pingHealth();
+
+      // Schedule cron job to run every 14 minutes
+      // Cron format: minute hour day month day-of-week
+      // */14 * * * * means every 14 minutes
+      cron.schedule('*/14 * * * *', () => {
+        pingHealth();
+      });
+
+      console.log('[Health Ping] Cron job started - pinging health endpoint every 14 minutes');
+    } else {
+      console.log('[Health Ping] Skipped in development mode');
+    }
   })
   .catch((error) => {
     // Security: Don't log full connection string
