@@ -93,7 +93,13 @@ app.use(cors(corsOptions));
 app.use(express.json({ limit: '100kb' })); // Limit JSON payloads
 app.use(express.urlencoded({ extended: true, limit: '100kb' })); // Limit URL-encoded payloads
 
-// Health check endpoint (register before rate limiter for easy access)
+// Health check endpoints
+// /health - for Render deployment health checks (required by Render)
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// /api/health - for application health checks and cron job pings
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
